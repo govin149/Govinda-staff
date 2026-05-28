@@ -7,7 +7,7 @@
 <meta name="theme-color" content="#0a2540">
 <title>Rapid Pro Clean — Staff Portal</title>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 :root{
@@ -172,6 +172,13 @@ body{font-family:var(--fn);background:var(--sf);color:var(--tx);min-height:100vh
 .fbanner{background:var(--rdl);border:1.5px solid #f5b5b5;border-radius:var(--rs);padding:12px 14px;margin-bottom:14px}
 .fi{font-size:11px;color:var(--rd);margin-top:3px;line-height:1.4}
 ::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:var(--bd);border-radius:2px}
+
+/* Incident Report */
+.inc-badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;}
+.inc-open{background:#fff3e0;color:#e65100;}
+.inc-reviewed{background:#e8f5e9;color:#2e7d32;}
+.inc-card{background:var(--cd);border:1px solid var(--bd);border-radius:var(--r);padding:14px;margin-bottom:10px;}
+
 </style>
 </head>
 <body>
@@ -203,7 +210,7 @@ body{font-family:var(--fn);background:var(--sf);color:var(--tx);min-height:100vh
 <!-- NOTIFICATION PANEL -->
 <div class="np" id="NP">
   <div class="nph">
-    <div style="font-size:13px;font-weight:700;color:var(--nv)">Notifications</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;width:100%"><div style="font-size:13px;font-weight:700;color:var(--nv)">Notifications</div><button onclick="clearReadNotifs()" style="background:none;border:none;cursor:pointer;font-size:11px;color:#e53935;padding:2px 6px;border-radius:4px;">🗑 Clear read</button></div>
     <button onclick="markAllRead()" style="background:none;border:none;font-size:11px;color:var(--nv2);cursor:pointer;font-family:var(--fn);font-weight:600">Mark all read</button>
   </div>
   <div id="NL"><div class="empty" style="padding:20px"><div class="empty-ico">&#128276;</div>No notifications</div></div>
@@ -234,6 +241,9 @@ body{font-family:var(--fn);background:var(--sf);color:var(--tx);min-height:100vh
 </div>
 <div class="pg" id="p-leave"><div id="LeaveC"><div class="loader"><div class="spin"></div>Loading...</div></div></div>
 <div class="pg" id="p-docs"><div id="DocsC"><div class="loader"><div class="spin"></div>Loading...</div></div></div>
+
+<div class="pg" id="p-incidents"><div id="IncidentsC"><div class="loader"><div class="spin"></div>Loading...</div></div></div>
+
 <div class="pg" id="p-photos">
   <div class="sl">Work Photos</div>
   <div id="ShareP" style="display:none;background:var(--nvl);border:1.5px solid var(--nv2);border-radius:var(--r);padding:14px;margin-bottom:14px">
@@ -462,7 +472,17 @@ body{font-family:var(--fn);background:var(--sf);color:var(--tx);min-height:100vh
 <script>
 const SB_URL='https://dhcgsdxgxqqlczifqxyq.supabase.co';
 const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRoY2dzZHhneHFxbGN6aWZxeHlxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg5MTM4MDYsImV4cCI6MjA5NDQ4OTgwNn0.BCIrOOW1FGpneqGBNX5yRqrBwsVYcufkqwWjr_tZ63E';
-const db=(typeof supabase!=="undefined")?supabase.createClient(SB_URL,SB_KEY):null;
+var db=null;
+window.addEventListener('load',function(){
+  if(typeof supabase!=='undefined'){
+    db=supabase.createClient(SB_URL,SB_KEY);
+    console.log('Supabase connected');
+  } else {
+    console.log('Supabase failed to load');
+    var e=document.getElementById('lErr');
+    if(e)e.textContent='Connection error. Please refresh.';
+  }
+});
 const AV={a:{bg:'#E1F5EE',c:'#085041'},b:{bg:'#E6F1FB',c:'#0C447C'},c:{bg:'#FAEEDA',c:'#633806'},d:{bg:'#FBEAF0',c:'#72243E'},e:{bg:'#EEEDFE',c:'#3C3489'},f:{bg:'#EAF3DE',c:'#27500A'}};
 let CU=null,allStaff=[],allSites=[],wkOff=0,rV='day';
 let pPhSh=null,pPhSite=null,pTrvId=null,pTrvAct=null,pTrvNm=null;
@@ -480,6 +500,19 @@ const fmtHrs=m=>{if(!m&&m!==0)return'0m';const h=Math.floor(m/60),r=Math.round(m
 const todayStr=()=>new Date().toISOString().slice(0,10);
 const esc=s=>(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 const q=id=>document.getElementById(id);
+// Show connection status on login screen
+window.addEventListener('load', function(){
+  setTimeout(function(){
+    var err = q('lErr');
+    if(!err) return;
+    if(typeof supabase === 'undefined'){
+      err.textContent = 'App failed to load. Please check your internet and refresh.';
+      err.style.color = '#ff8a8a';
+    } else if(!db){
+      window.db = supabase.createClient(SB_URL, SB_KEY);
+    }
+  }, 2000);
+});
 const toast=m=>{const t=q('TT');t.textContent=m;t.classList.add('on');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('on'),3200)};
 const openM=id=>q(id).classList.add('on');
 const closeM=id=>q(id).classList.remove('on');
@@ -499,6 +532,13 @@ const el=(tag,style,html)=>{const e=document.createElement(tag);if(style)e.style
 async function doLogin(){
   const name=q('lName').value.trim(),pin=q('lPin').value.trim(),err=q('lErr');
   if(!name||!pin){err.textContent='Please enter your name and PIN';return}
+  if(!db){
+    if(typeof supabase!=='undefined'){
+      window.db=supabase.createClient(SB_URL,SB_KEY);
+    } else {
+      err.textContent='Connection error. Please refresh the page and try again.';return;
+    }
+  }
   err.textContent='Checking...';
   try{
     const {data,error}=await db.from('rpc_staff').select('*').ilike('name',name).eq('pin',pin).limit(1);
@@ -524,8 +564,8 @@ async function loadSites(){try{const {data}=await db.from('rpc_sites').select('*
 // NAV
 function buildNav(){
   const n=q('MNav');
-  const ic={home:'<svg viewBox="0 0 24 24"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z"/><path d="M9 21V12h6v9"/></svg>',roster:'<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',leave:'<svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>',docs:'<svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>',photos:'<svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>',payroll:'<svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>',admin:'<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>'};
-  const pages=CU.is_admin?[['home','Home'],['roster','Roster'],['leave','Leave'],['docs','Docs'],['photos','Photos'],['payroll','Payroll'],['admin','Admin']]:[['home','Home'],['roster','Roster'],['leave','Leave'],['docs','Docs']];
+  const ic={incidents:'incidents':'<svg viewBox="0 0 24 24"><path d="M12 2L1 21h22L12 2zm0 3.5l8.5 15H3.5L12 5.5zM11 10v4h2v-4h-2zm0 6v2h2v-2h-2"/></svg>',home:'<svg viewBox="0 0 24 24"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z"/><path d="M9 21V12h6v9"/></svg>',roster:'<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',leave:'<svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>',docs:'<svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>',photos:'<svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>',payroll:'<svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>',admin:'<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>'};
+  const pages=CU.is_admin?[['home','Home'],['roster','Roster'],['leave','Leave'],['docs','Docs'],['photos','Photos'],['payroll','Payroll'],['incidents','🚨'],['admin','Admin']]:[['home','Home'],['roster','Roster'],['leave','Leave'],['docs','Docs'],['incidents','🚨']];
   n.innerHTML=pages.map(([p,l])=>'<button class="ni" id="n-'+p+'" onclick="goPage(\''+p+'\')">'+ic[p]+l+'</button>').join('');
 }
 function goPage(p){
@@ -541,6 +581,7 @@ function goPage(p){
   else if(p==='photos')renderPhotos();
   else if(p==='payroll')initPayroll();
   else if(p==='admin')renderAdmin();
+  else if(p==='incidents')renderIncidents();
 }
 function tick(){const n=new Date();q('CT').textContent=n.toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit',hour12:false});q('CD').textContent=n.toLocaleDateString('en-AU',{weekday:'short',day:'numeric',month:'short'})}
 
@@ -555,12 +596,19 @@ async function loadNotifs(){
     data.forEach(n=>{
       const d=document.createElement('div');d.className='dfi';d.style.cursor='pointer';d.style.background=n.is_read?'':'var(--nvl)';
       d.innerHTML='<div style="font-size:18px;flex-shrink:0">'+esc(n.icon||'📌')+'</div><div style="flex:1"><div style="font-size:12px;font-weight:700;color:var(--tx)">'+esc(n.title)+'</div><div style="font-size:11px;color:var(--t3);margin-top:2px;line-height:1.4">'+esc(n.message)+'</div></div><div style="font-size:10px;color:var(--t3)">'+fmtD(n.created_at)+'</div>';
+      d.style.cssText='display:flex;align-items:center;justify-content:space-between;'+d.style.cssText;
       d.onclick=()=>{db.from('rpc_notifications').update({is_read:true}).eq('id',n.id).then(()=>loadNotifs())};
+      const delBtn=document.createElement('button');
+      delBtn.innerHTML='🗑';delBtn.title='Delete';
+      delBtn.style.cssText='background:none;border:none;cursor:pointer;font-size:13px;padding:2px 6px;opacity:0.5;flex-shrink:0;';
+      delBtn.onclick=(e)=>{e.stopPropagation();if(confirm('Delete this notification?'))db.from('rpc_notifications').delete().eq('id',n.id).then(()=>loadNotifs())};
+      d.appendChild(delBtn);
       nl.appendChild(d);
     });
   }catch{}
 }
 async function markAllRead(){try{await db.from('rpc_notifications').update({is_read:true}).eq('staff_id',CU.id);loadNotifs();toast('All read')}catch{}}
+async function clearReadNotifs(){if(!confirm('Delete all read notifications?'))return;try{await db.from('rpc_notifications').delete().eq('staff_id',CU.id).eq('is_read',true);loadNotifs();toast('Read notifications cleared')}catch{}}
 function toggleNotif(){q('NP').classList.toggle('on')}
 async function sendNotif(){
   const tg=q('ntTg').value,msg=q('ntMsg').value.trim();
@@ -835,7 +883,12 @@ async function renderDay(el2){
   pb.onclick=()=>{const d=new Date(selDay+'T00:00:00');d.setDate(d.getDate()-1);el2.dataset.day=d.toISOString().slice(0,10);renderDay(el2)};
   const nb=document.createElement('button');nb.style.cssText=pb.style.cssText;nb.textContent='›';
   nb.onclick=()=>{const d=new Date(selDay+'T00:00:00');d.setDate(d.getDate()+1);el2.dataset.day=d.toISOString().slice(0,10);renderDay(el2)};
-  const dlblEl=document.createElement('div');dlblEl.style.cssText='font-size:13px;font-weight:700;color:var(--tx)';dlblEl.textContent=dayLbl;
+  const dlblEl=document.createElement('div');dlblEl.style.cssText='display:flex;flex-direction:column;align-items:center;gap:2px';
+  const dlblTxt=document.createElement('div');dlblTxt.style.cssText='font-size:11px;font-weight:700;color:var(--tx)';dlblTxt.textContent=dayLbl;
+  const dateInp=document.createElement('input');dateInp.type='date';dateInp.value=selDay;
+  dateInp.style.cssText='border:none;background:none;font-size:11px;color:var(--nv2);font-weight:600;cursor:pointer;text-align:center;width:130px';
+  dateInp.onchange=function(){el2.dataset.day=dateInp.value;renderDay(el2);};
+  dlblEl.appendChild(dlblTxt);dlblEl.appendChild(dateInp);
   nav.appendChild(pb);nav.appendChild(dlblEl);nav.appendChild(nb);
   const tog=document.createElement('div');tog.style.cssText='display:flex;gap:6px;margin-bottom:12px';
   const lb=document.createElement('button');lb.className='pvb on';lb.textContent='📋 List';
@@ -1292,7 +1345,99 @@ function downloadLeaveForm(){
   p.push('<div class="chk"><input type="checkbox"> Rejected</div></div>');
   p.push('<textarea class="box" placeholder="Admin comments..."></textarea><br>');
   p.push('<button class="noprint" onclick="window.print()" style="background:#0a2540;color:#fff;border:none;padding:12px 28px;border-radius:6px;font-size:14px;font-weight:700;cursor:pointer;margin-top:12px">Print / Save as PDF</button>');
-  p.push('</body></html>');
+  p.push('
+<div class="mov" id="IncidentM"><div class="msh"><div class="mh"></div><div class="mt">🚨 Incident Report Form</div>
+
+  <div style="font-size:11px;color:var(--t2);margin-bottom:14px;line-height:1.5">The incident report must be reported to your Manager within 24 hours. For serious incidents immediately contact Rajesh Khanal: 0432 635 667</div>
+
+  <div class="sl" style="margin:0 0 10px;font-size:12px">SECTION 1 — INCIDENT DETAILS</div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+    <div><div class="mlbl">Given Name *</div><input class="mi" id="incGiven" placeholder="Given name" type="text"></div>
+    <div><div class="mlbl">Surname *</div><input class="mi" id="incSurname" placeholder="Surname" type="text"></div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+    <div><div class="mlbl">Date of Birth</div><input class="mi" id="incDOB" type="date"></div>
+    <div><div class="mlbl">Employee ID</div><input class="mi" id="incEmpID" placeholder="e.g. EMP001" type="text"></div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+    <div><div class="mlbl">Date of Incident *</div><input class="mi" id="incDate" type="date"></div>
+    <div><div class="mlbl">Time of Incident *</div><input class="mi" id="incTime" type="time"></div>
+  </div>
+  <div class="mlbl">Weather Conditions</div>
+  <select class="msel" id="incWeather">
+    <option value="">Select...</option>
+    <option>Fine / Clear</option>
+    <option>Raining</option>
+    <option>Wet / Slippery</option>
+    <option>Windy</option>
+    <option>Hot</option>
+    <option>Indoor - N/A</option>
+  </select>
+  <div class="mlbl">Site / Location of Incident *</div><input class="mi" id="incSite" placeholder="e.g. Coles Westfield" type="text">
+  <div class="mlbl">Describe Exact Location</div><input class="mi" id="incLocation" placeholder="e.g. Car park, Level 2, near entry" type="text">
+  <div class="mlbl">Incident Type *</div>
+  <select class="msel" id="incType">
+    <option value="">Select type...</option>
+    <option>Slip / Trip / Fall</option>
+    <option>Chemical Exposure</option>
+    <option>Equipment Damage</option>
+    <option>Property Damage</option>
+    <option>Near Miss</option>
+    <option>Staff Conflict</option>
+    <option>Other</option>
+  </select>
+  <div class="mlbl">Who Caused the Incident</div><input class="mi" id="incCaused" placeholder="Name of person involved" type="text">
+  <div class="mlbl">Nature and Extent of Injuries (Involved Person)</div>
+  <textarea class="mi" id="incInjuries" rows="2" placeholder="Describe injuries sustained..." style="resize:vertical"></textarea>
+  <div class="mlbl">Was Anyone Injured?</div>
+  <select class="msel" id="incInjured">
+    <option value="No">No</option>
+    <option value="Yes - Minor">Yes - Minor</option>
+    <option value="Yes - Moderate">Yes - Moderate</option>
+    <option value="Yes - Serious">Yes - Serious</option>
+  </select>
+  <div class="mlbl">Witness Name(s)</div><input class="mi" id="incWitness" placeholder="Leave blank if none" type="text">
+  <div class="mlbl">Incident Description — What Happened? *</div>
+  <textarea class="mi" id="incWhat" rows="3" placeholder="Describe what happened in detail..." style="resize:vertical"></textarea>
+  <div class="mlbl">Immediate Containment Actions Taken</div>
+  <textarea class="mi" id="incAction" rows="2" placeholder="What was done immediately after the incident?" style="resize:vertical"></textarea>
+  <div class="mlbl">Incident Reported To (Name)</div><input class="mi" id="incReportedTo" placeholder="Manager/Supervisor name" type="text">
+
+  <div class="sl" style="margin:14px 0 10px;font-size:12px">SECTION 2 — COMPANY PROPERTY DAMAGE</div>
+  <div class="mlbl">Extent of Damage to Company Property/Equipment</div>
+  <textarea class="mi" id="incCompDamage" rows="2" placeholder="Describe damage or write N/A" style="resize:vertical"></textarea>
+  <div class="mlbl">Vehicle or Equipment Fleet No. / Registration</div>
+  <input class="mi" id="incVehicleReg" placeholder="e.g. ABC123 or N/A" type="text">
+  <div class="mlbl">Trailer Fleet No. / Registration</div>
+  <input class="mi" id="incTrailerReg" placeholder="e.g. TRL001 or N/A" type="text">
+
+  <div class="sl" style="margin:14px 0 10px;font-size:12px">SECTION 3 — THIRD PARTY INVOLVEMENT</div>
+  <div class="mlbl">Third Party Name and Contact Information</div>
+  <input class="mi" id="incThirdParty" placeholder="Name and phone/email or N/A" type="text">
+  <div class="mlbl">Nature and Extent of Third Party Injuries</div>
+  <textarea class="mi" id="incThirdInjuries" rows="2" placeholder="Describe or write N/A" style="resize:vertical"></textarea>
+  <div class="mlbl">Extent of Damage to Third Party Property/Equipment</div>
+  <textarea class="mi" id="incThirdDamage" rows="2" placeholder="Describe or write N/A" style="resize:vertical"></textarea>
+
+  <div class="sl" style="margin:14px 0 10px;font-size:12px">SECTION 4 — PHOTO / EVIDENCE</div>
+  <div class="mlbl">Attach Photo of Incident Site (optional)</div>
+  <input class="mi" id="incPhoto" type="file" accept="image/*" style="padding:8px">
+
+  <div class="sl" style="margin:14px 0 10px;font-size:12px">SECTION 5 — ACKNOWLEDGEMENT</div>
+  <div style="font-size:11px;color:var(--t2);margin-bottom:8px">I acknowledge the information recorded in this report is true and correct.</div>
+  <div class="mlbl">Staff Signature *</div>
+  <canvas id="incSigPad" width="400" height="100" style="border:1px solid var(--bd);border-radius:8px;background:#fff;width:100%;touch-action:none"></canvas>
+  <button class="btn sc sm" style="margin:4px 0 10px" onclick="clearIncSig()">Clear Signature</button>
+  <div class="mlbl">Date of Acknowledgement</div>
+  <input class="mi" id="incAckDate" type="date">
+
+  <div id="incErr" style="color:#e53935;font-size:12px;margin-top:4px"></div>
+  <button class="btn nv" onclick="submitIncident()">Submit Report</button>
+  <button class="btn sc" onclick="closeM('IncidentM')">Cancel</button>
+</div></div>
+
+</body></html>');
   var h=p.join('');
   try{
     var blob=new Blob([h],{type:'text/html'});
@@ -1396,11 +1541,16 @@ async function renderStaffDocs(el2){
       var info2=document.createElement('div');
       info2.innerHTML='<div class="cl" style="font-size:13px">'+(d?esc(d.name):'Document')+'</div><div class="cs">Signed '+fmtD(s.signed_at)+'</div>';
       row.appendChild(info2);
+      var sRowActs=document.createElement('div');sRowActs.style.cssText='display:flex;gap:4px;align-items:center;flex-shrink:0';
       if(s.signed_url){
         var vb=document.createElement('button');vb.className='ebtn';vb.textContent='View';
         (function(url){vb.onclick=function(){window.open(url,'_blank')};})(s.signed_url);
-        row.appendChild(vb);
+        sRowActs.appendChild(vb);
       }
+      var dlb=document.createElement('button');dlb.className='btn nv sm';dlb.style.cssText='margin:0;font-size:11px;padding:4px 8px';dlb.textContent='⬇ PDF';
+      (function(docN,staffN,signAt,sigUrl){dlb.onclick=function(){downloadSignedDoc(docN,staffN,signAt,sigUrl);};})(d?d.name:'Document',s.staff_name||CU.name,s.signed_at,s.signed_url);
+      sRowActs.appendChild(dlb);
+      row.appendChild(sRowActs);
       sc.appendChild(row);
     });
     el2.appendChild(sc);
@@ -1532,8 +1682,12 @@ async function renderAdminDocs(el2){
         var tick=document.createElement('div');tick.style.fontSize='18px';tick.textContent='✅';
         var rinf=document.createElement('div');rinf.style.flex='1';
         rinf.innerHTML='<div style="font-size:13px;font-weight:600;color:var(--tx)">'+(docNames[s.doc_id]||'Document')+'</div><div style="font-size:10px;color:var(--t3);margin-top:1px">Signed '+fmtD(s.signed_at)+'</div>';
-        row.appendChild(tick);row.appendChild(rinf);
-        if(s.signed_url){var rb=document.createElement('button');rb.className='ebtn';rb.textContent='View';(function(url){rb.onclick=function(){window.open(url,'_blank')};})(s.signed_url);row.appendChild(rb)}
+        var dloadBtn=document.createElement('button');dloadBtn.className='btn nv sm';dloadBtn.style.cssText='margin:0;font-size:11px;padding:4px 8px';dloadBtn.textContent='⬇ Download PDF';
+        (function(docN,staffN,signAt,sigUrl){dloadBtn.onclick=function(){downloadSignedDoc(docN,staffN,signAt,sigUrl)};})(docNames[s.doc_id]||'Document',s.staff_name,s.signed_at,s.signed_url);
+        var rowActs=document.createElement('div');rowActs.style.cssText='display:flex;gap:4px;flex-shrink:0;align-items:center';
+        rowActs.appendChild(dloadBtn);
+        row.appendChild(tick);row.appendChild(rinf);row.appendChild(rowActs);
+        if(s.signed_url){var rb=document.createElement('button');rb.className='ebtn';rb.textContent='View Sig';(function(url){rb.onclick=function(){window.open(url,'_blank')};})(s.signed_url);row.appendChild(rb)}
         body2.appendChild(row);
       });
 
@@ -1801,6 +1955,497 @@ async function saveSign(){
     toast('Error saving signature: '+(e.message||'Please try again'));
   }
 }
+
+
+async function loadJsPDF(){
+  if(window.jspdf) return true;
+  return new Promise((resolve)=>{
+    const s=document.createElement('script');
+    s.src='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+    s.onload=()=>resolve(true);
+    s.onerror=()=>resolve(false);
+    document.head.appendChild(s);
+  });
+}
+
+// DOWNLOAD SIGNED DOCUMENT AS PDF
+async function downloadSignedDoc(docName, staffName, signedAt, signedUrl) {
+  try {
+    if(!window.jspdf){toast("PDF library not loaded. Please refresh and try again.");return;} const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const pageW = doc.internal.pageSize.getWidth();
+    const margin = 20;
+    let y = 20;
+
+    // Header - company name
+    doc.setFillColor(10, 37, 64);
+    doc.rect(0, 0, pageW, 30, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.text('RAPID PRO CLEAN', pageW / 2, 13, { align: 'center' });
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.text('STAFF PORTAL — SIGNED DOCUMENT RECORD', pageW / 2, 21, { align: 'center' });
+    y = 45;
+
+    // Document details
+    doc.setTextColor(10, 37, 64);
+    doc.setFontSize(13);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Document: ' + docName, margin, y); y += 10;
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(60, 60, 60);
+    doc.text('Signed by: ' + staffName, margin, y); y += 7;
+    doc.text('Date & Time: ' + new Date(signedAt).toLocaleString('en-AU'), margin, y); y += 7;
+    doc.text('Status: SIGNED ✓', margin, y); y += 15;
+
+    // Divider
+    doc.setDrawColor(10, 37, 64);
+    doc.setLineWidth(0.5);
+    doc.line(margin, y, pageW - margin, y); y += 10;
+
+    // Signature section
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(10, 37, 64);
+    doc.text('STAFF SIGNATURE', margin, y); y += 8;
+
+    if (signedUrl && signedUrl.startsWith('typed:')) {
+      // Typed signature
+      const typedName = signedUrl.replace('typed:', '');
+      doc.setFontSize(22);
+      doc.setFont('helvetica', 'bolditalic');
+      doc.setTextColor(10, 37, 64);
+      doc.text(typedName, margin, y + 10);
+      y += 25;
+    } else if (signedUrl && !signedUrl.startsWith('typed:')) {
+      // Image signature - load and embed
+      try {
+        const response = await fetch(signedUrl);
+        const blob = await response.blob();
+        const reader = new FileReader();
+        const imgData = await new Promise((res) => {
+          reader.onload = (e) => res(e.target.result);
+          reader.readAsDataURL(blob);
+        });
+        doc.addImage(imgData, 'PNG', margin, y, 80, 30);
+        y += 35;
+      } catch(e) {
+        doc.setFontSize(10);
+        doc.setTextColor(150, 150, 150);
+        doc.text('[Signature image — see system records]', margin, y + 10);
+        y += 20;
+      }
+    }
+
+    // Signature line
+    doc.setDrawColor(100, 100, 100);
+    doc.setLineWidth(0.3);
+    doc.line(margin, y, margin + 90, y);
+    doc.setFontSize(8);
+    doc.setTextColor(100, 100, 100);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Staff Signature', margin, y + 5); y += 20;
+
+    // Footer
+    doc.setFillColor(240, 240, 240);
+    doc.rect(0, 277, pageW, 20, 'F');
+    doc.setFontSize(8);
+    doc.setTextColor(100, 100, 100);
+    doc.text('Rapid Pro Clean — rapidproclean.com.au', pageW / 2, 285, { align: 'center' });
+    doc.text('This document was digitally signed via the Rapid Pro Clean Staff Portal', pageW / 2, 290, { align: 'center' });
+
+    // Save
+    const fileName = 'Signed_' + docName.replace(/[^a-zA-Z0-9]/g, '_') + '_' + staffName.replace(/[^a-zA-Z0-9]/g, '_') + '.pdf';
+    doc.save(fileName);
+    toast('Signed PDF downloaded ✅');
+  } catch(e) {
+    toast('PDF download failed: ' + (e.message || 'Please try again'));
+  }
+}
+
+
+// ═══════════════════════════════════════════════════════
+// INCIDENT REPORTS
+// ═══════════════════════════════════════════════════════
+async function renderIncidents(){
+  var el2=q('IncidentsC');
+  el2.innerHTML='<div class="loader"><div class="spin"></div>Loading...</div>';
+  try{
+    var qb=db.from('rpc_incidents').select('*').order('created_at',{ascending:false});
+    if(!CU.is_admin) qb=qb.eq('reporter_id',CU.id);
+    var {data:incidents,error}=await qb;
+    if(error) throw error;
+    el2.innerHTML='';
+
+    var hdr=document.createElement('div');
+    hdr.style.cssText='display:flex;align-items:center;justify-content:space-between;margin-bottom:14px';
+    var title=document.createElement('div');title.className='sl';title.style.margin='0';
+    title.textContent=CU.is_admin?'All Incident Reports':'My Incident Reports';
+    var newBtn=document.createElement('button');newBtn.className='btn nv sm';newBtn.style.margin='0';
+    newBtn.textContent='+ Report Incident';
+    newBtn.onclick=function(){openIncidentForm()};
+    hdr.appendChild(title);hdr.appendChild(newBtn);
+    el2.appendChild(hdr);
+
+    if(!incidents||!incidents.length){
+      var emp=document.createElement('div');emp.className='empty';
+      emp.innerHTML='<div class="empty-ico">🚨</div>No incident reports yet.';
+      el2.appendChild(emp);return;
+    }
+
+    incidents.forEach(function(inc){
+      var card=document.createElement('div');card.className='inc-card';
+
+      // Top row: badge + incident number + date
+      var topRow=document.createElement('div');
+      topRow.style.cssText='display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:4px';
+      var leftTop=document.createElement('div');leftTop.style.cssText='display:flex;align-items:center;gap:6px';
+      var badge=document.createElement('span');
+      badge.className='inc-badge '+(inc.status==='Reviewed'?'inc-reviewed':'inc-open');
+      badge.textContent=inc.status||'Open';
+      var incNum=document.createElement('span');incNum.style.cssText='font-size:10px;color:var(--t3);font-weight:600';
+      incNum.textContent=inc.incident_number||'';
+      leftTop.appendChild(badge);leftTop.appendChild(incNum);
+      var dateEl=document.createElement('div');dateEl.style.cssText='font-size:11px;color:var(--t3)';
+      dateEl.textContent=new Date(inc.created_at).toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'});
+      topRow.appendChild(leftTop);topRow.appendChild(dateEl);
+      card.appendChild(topRow);
+
+      var ttl=document.createElement('div');ttl.style.cssText='font-size:14px;font-weight:700;color:var(--tx);margin-bottom:8px';
+      ttl.textContent=(inc.incident_type||'Incident')+' — '+esc(inc.site||'Unknown Site');
+      card.appendChild(ttl);
+
+      var meta=document.createElement('div');meta.style.cssText='font-size:11px;color:var(--t2);margin-bottom:8px;line-height:1.8;background:var(--sf);border-radius:6px;padding:8px';
+      meta.innerHTML='<b>Reported by:</b> '+esc(inc.reporter_name||'')
+        +(inc.emp_id?'  <b>Employee ID:</b> '+esc(inc.emp_id):'')
+        +(inc.dob?'  <b>DOB:</b> '+inc.dob:'')
+        +'<br><b>Date/Time:</b> '+(inc.incident_date||'')+' at '+(inc.incident_time||'')
+        +(inc.weather?'  <b>Weather:</b> '+esc(inc.weather):'')
+        +'<br><b>Location:</b> '+esc(inc.site||'')+(inc.location_desc?' — '+esc(inc.location_desc):'')
+        +(inc.caused_by?'<br><b>Caused by:</b> '+esc(inc.caused_by):'')
+        +'<br><b>Injured:</b> '+esc(inc.injured||'No')
+        +(inc.injuries?'<br><b>Injuries:</b> '+esc(inc.injuries):'')
+        +(inc.witness_names?'<br><b>Witnesses:</b> '+esc(inc.witness_names):'')
+        +(inc.reported_to?'<br><b>Reported to:</b> '+esc(inc.reported_to):'');
+      card.appendChild(meta);
+
+      if(inc.what_happened){
+        var wh=document.createElement('div');wh.style.cssText='font-size:12px;color:var(--tx);background:var(--sf);border-radius:6px;padding:8px;margin-bottom:6px';
+        wh.innerHTML='<b>What happened:</b><br>'+esc(inc.what_happened);card.appendChild(wh);
+      }
+      if(inc.action_taken){
+        var at=document.createElement('div');at.style.cssText='font-size:12px;color:var(--tx);background:var(--sf);border-radius:6px;padding:8px;margin-bottom:6px';
+        at.innerHTML='<b>Action taken:</b><br>'+esc(inc.action_taken);card.appendChild(at);
+      }
+
+      // Company damage section
+      if(inc.comp_damage||inc.vehicle_reg||inc.trailer_reg){
+        var cd=document.createElement('div');cd.style.cssText='font-size:11px;color:var(--t2);background:var(--sf);border-radius:6px;padding:8px;margin-bottom:6px;line-height:1.7';
+        cd.innerHTML='<b>Company Property Damage:</b>'
+          +(inc.comp_damage?'<br>'+esc(inc.comp_damage):'<br>N/A')
+          +(inc.vehicle_reg?'<br><b>Vehicle/Equipment Reg:</b> '+esc(inc.vehicle_reg):'')
+          +(inc.trailer_reg?'<br><b>Trailer Reg:</b> '+esc(inc.trailer_reg):'');
+        card.appendChild(cd);
+      }
+
+      // Third party section
+      if(inc.third_party){
+        var tp=document.createElement('div');tp.style.cssText='font-size:11px;color:var(--t2);background:var(--sf);border-radius:6px;padding:8px;margin-bottom:6px;line-height:1.7';
+        tp.innerHTML='<b>Third Party:</b> '+esc(inc.third_party)
+          +(inc.third_injuries?'<br><b>Their Injuries:</b> '+esc(inc.third_injuries):'')
+          +(inc.third_damage?'<br><b>Their Property Damage:</b> '+esc(inc.third_damage):'');
+        card.appendChild(tp);
+      }
+
+      if(inc.photo_url){
+        var img=document.createElement('img');
+        img.src=inc.photo_url;img.style.cssText='width:100%;max-height:200px;object-fit:cover;border-radius:8px;margin:6px 0;cursor:pointer';
+        img.onclick=function(){openLB(inc.photo_url,'Incident Photo')};
+        card.appendChild(img);
+      }
+
+      // Action buttons row
+      var actRow=document.createElement('div');actRow.style.cssText='display:flex;gap:6px;margin-top:10px;flex-wrap:wrap';
+
+      // Download PDF button
+      var pdfBtn=document.createElement('button');pdfBtn.className='btn sc sm';pdfBtn.style.margin='0';pdfBtn.textContent='⬇ Download PDF';
+      (function(i){pdfBtn.onclick=function(){downloadIncidentPDF(i)};})(inc);
+      actRow.appendChild(pdfBtn);
+
+      if(CU.is_admin && inc.status!=='Reviewed'){
+        var rvBtn=document.createElement('button');rvBtn.className='btn tl sm';rvBtn.style.margin='0';rvBtn.textContent='✅ Mark Reviewed';
+        (function(id){rvBtn.onclick=function(){markIncidentReviewed(id)};})(inc.id);
+        actRow.appendChild(rvBtn);
+      }
+      card.appendChild(actRow);
+      el2.appendChild(card);
+    });
+  }catch(e){
+    el2.innerHTML='<div class="empty"><div class="empty-ico">⚠️</div>Error loading incidents.<br><small>Run the SQL setup in Supabase first.</small></div>';
+  }
+}
+
+
+function openIncidentForm(){
+  var today=new Date().toISOString().slice(0,10);
+  var now=new Date().toTimeString().slice(0,5);
+  q('incGiven').value=CU.name?CU.name.split(' ')[0]:'';
+  q('incSurname').value=CU.name&&CU.name.split(' ').length>1?CU.name.split(' ').slice(1).join(' '):'';
+  q('incDOB').value='';q('incEmpID').value=CU.id||'';
+  q('incDate').value=today;q('incTime').value=now;
+  q('incWeather').value='';q('incSite').value='';q('incLocation').value='';
+  q('incType').value='';q('incCaused').value='';q('incInjured').value='No';
+  q('incInjuries').value='';q('incWitness').value='';q('incWhat').value='';
+  q('incAction').value='';q('incReportedTo').value='';
+  q('incCompDamage').value='';q('incVehicleReg').value='';q('incTrailerReg').value='';
+  q('incThirdParty').value='';q('incThirdInjuries').value='';q('incThirdDamage').value='';
+  q('incPhoto').value='';q('incAckDate').value=today;
+  q('incErr').textContent='';
+  openM('IncidentM');
+  setTimeout(initIncSig,300);
+}
+async function submitIncident(){
+  var given=q('incGiven').value.trim();
+  var surname=q('incSurname').value.trim();
+  var dob=q('incDOB').value;
+  var empid=q('incEmpID').value.trim();
+  var date=q('incDate').value;
+  var time=q('incTime').value;
+  var weather=q('incWeather').value;
+  var site=q('incSite').value.trim();
+  var location=q('incLocation').value.trim();
+  var type=q('incType').value;
+  var caused=q('incCaused').value.trim();
+  var injured=q('incInjured').value;
+  var injuries=q('incInjuries').value.trim();
+  var witness=q('incWitness').value.trim();
+  var what=q('incWhat').value.trim();
+  var action=q('incAction').value.trim();
+  var reportedTo=q('incReportedTo').value.trim();
+  var compDamage=q('incCompDamage').value.trim();
+  var vehicleReg=q('incVehicleReg').value.trim();
+  var trailerReg=q('incTrailerReg').value.trim();
+  var thirdParty=q('incThirdParty').value.trim();
+  var thirdInjuries=q('incThirdInjuries').value.trim();
+  var thirdDamage=q('incThirdDamage').value.trim();
+  var ackDate=q('incAckDate').value;
+  var photoFile=q('incPhoto').files[0];
+  var err=q('incErr');
+
+  if(!given||!surname||!date||!site||!type||!what){
+    err.textContent='Please fill in all required fields (marked with *).';return;
+  }
+  err.textContent='Submitting...';
+
+  try{
+    // Get signature from canvas
+    var sigDataUrl=null;
+    var cv=q('incSigPad');
+    if(cv&&incSigCtx){
+      var blank=document.createElement('canvas');blank.width=cv.width;blank.height=cv.height;
+      if(cv.toDataURL()!==blank.toDataURL()){sigDataUrl=cv.toDataURL('image/png');}
+    }
+
+    var photoUrl=null;
+    if(photoFile){
+      var compressed=await compressImg(photoFile,1200,0.8);
+      var fn='incidents/'+CU.id+'_'+Date.now()+'_'+photoFile.name.replace(/[^a-zA-Z0-9._-]/g,'_');
+      var up=await db.storage.from('rpc-photos').upload(fn,compressed,{contentType:'image/jpeg',upsert:true});
+      if(!up.error){photoUrl=db.storage.from('rpc-photos').getPublicUrl(fn).data.publicUrl;}
+    }
+
+    // Auto incident number: INC-YYYYMMDD-XXXX
+    var incNum='INC-'+date.replace(/-/g,'')+'-'+Math.floor(1000+Math.random()*9000);
+
+    var {error}=await db.from('rpc_incidents').insert({
+      reporter_id:CU.id,reporter_name:given+' '+surname,
+      given_name:given,surname:surname,dob:dob,emp_id:empid,
+      incident_date:date,incident_time:time,weather:weather,
+      site:site,location_desc:location,incident_type:type,
+      caused_by:caused,injured:injured,injuries:injuries,
+      witness_names:witness,what_happened:what,action_taken:action,
+      reported_to:reportedTo,
+      comp_damage:compDamage,vehicle_reg:vehicleReg,trailer_reg:trailerReg,
+      third_party:thirdParty,third_injuries:thirdInjuries,third_damage:thirdDamage,
+      ack_date:ackDate,sig_data:sigDataUrl,
+      photo_url:photoUrl,status:'Open',incident_number:incNum
+    });
+    if(error) throw error;
+
+    // Notify admins
+    var admins=allStaff.filter(function(s){return s.is_admin});
+    if(admins.length){
+      await db.from('rpc_notifications').insert(admins.map(function(a){
+        return {staff_id:a.id,title:'🚨 Incident Reported',
+          message:given+' '+surname+' reported a '+type+' at '+site+' ['+incNum+']',icon:'🚨',is_read:false};
+      }));
+    }
+    closeM('IncidentM');
+    toast('Incident report submitted ✅ — Ref: '+incNum);
+    renderIncidents();
+  }catch(e){
+    err.textContent='Error submitting: '+(e.message||'Please try again');
+  }
+}
+
+
+async function markIncidentReviewed(id){
+  try{
+    await db.from('rpc_incidents').update({status:'Reviewed'}).eq('id',id);
+    toast('Marked as reviewed ✅');
+    renderIncidents();
+  }catch(e){toast('Error: '+(e.message||'Try again'))}
+}
+
+async function downloadIncidentPDF(inc){
+  try{
+    if(!window.jspdf){toast("PDF library not loaded. Please refresh and try again.");return;} const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+    const pageW = doc.internal.pageSize.getWidth();
+    const pageH = doc.internal.pageSize.getHeight();
+    const margin = 15;
+    let y = 0;
+
+    // ── HEADER with logo ──────────────────────────────────────────────────
+    doc.setFillColor(10,37,64);
+    doc.rect(0,0,pageW,38,'F');
+    try{
+      const logoResp = await fetch('https://www.rapidproclean.com.au/wp-content/themes/rapidclean/assets/images/logo.png');
+      const logoBlob = await logoResp.blob();
+      const logoData = await new Promise(res=>{const r=new FileReader();r.onload=e=>res(e.target.result);r.readAsDataURL(logoBlob)});
+      doc.addImage(logoData,'PNG',margin,4,40,18);
+    }catch(e){}
+    doc.setTextColor(255,255,255);
+    doc.setFontSize(14);doc.setFont('helvetica','bold');
+    doc.text('RAPID PRO CLEAN',pageW/2,14,{align:'center'});
+    doc.setFontSize(9);doc.setFont('helvetica','normal');
+    doc.text('rapidproclean.com.au  |  info@rapidproclean.com.au  |  0432 635 667',pageW/2,21,{align:'center'});
+    doc.setFontSize(12);doc.setFont('helvetica','bold');
+    doc.text('INCIDENT REPORT FORM',pageW/2,30,{align:'center'});
+    y = 45;
+
+    // Incident number + status
+    doc.setFontSize(9);doc.setFont('helvetica','normal');doc.setTextColor(80,80,80);
+    doc.text('Incident No: '+(inc.incident_number||'N/A')+'    Status: '+(inc.status||'Open')+'    Submitted: '+new Date(inc.created_at).toLocaleDateString('en-AU'),margin,y);
+    y += 8;
+
+    // Helper functions
+    function sectionHeader(title){
+      doc.setFillColor(230,235,245);
+      doc.rect(margin,y,pageW-margin*2,7,'F');
+      doc.setFontSize(9);doc.setFont('helvetica','bold');doc.setTextColor(10,37,64);
+      doc.text(title,margin+2,y+5);
+      y += 10;
+    }
+    function field(label,value){
+      if(y > pageH-30){doc.addPage();y=20;}
+      doc.setFontSize(8);doc.setFont('helvetica','bold');doc.setTextColor(60,60,60);
+      doc.text(label+':',margin,y);
+      doc.setFont('helvetica','normal');doc.setTextColor(0,0,0);
+      var val = value||'N/A';
+      var lines = doc.splitTextToSize(val, pageW-margin*2-40);
+      doc.text(lines,margin+50,y);
+      y += Math.max(6, lines.length*5);
+    }
+    function divider(){
+      doc.setDrawColor(200,200,200);doc.setLineWidth(0.2);
+      doc.line(margin,y,pageW-margin,y);y+=4;
+    }
+
+    // ── SECTION 1: Incident Details ───────────────────────────────────────
+    sectionHeader('SECTION 1 — INCIDENT DETAILS');
+    field('Given Name',inc.given_name||inc.reporter_name||'');
+    field('Surname',inc.surname||'');
+    field('Date of Birth',inc.dob||'');
+    field('Employee ID',inc.emp_id||'');
+    divider();
+    field('Date of Incident',inc.incident_date||'');
+    field('Time of Incident',inc.incident_time||'');
+    field('Weather Conditions',inc.weather||'');
+    field('Site',inc.site||'');
+    field('Location Description',inc.location_desc||'');
+    field('Incident Type',inc.incident_type||'');
+    field('Caused By',inc.caused_by||'');
+    field('Was Anyone Injured',inc.injured||'No');
+    field('Nature & Extent of Injuries',inc.injuries||'N/A');
+    field('Witness Name(s)',inc.witness_names||'None');
+    field('Incident Reported To',inc.reported_to||'');
+    divider();
+    doc.setFontSize(8);doc.setFont('helvetica','bold');doc.setTextColor(60,60,60);
+    doc.text('Incident Description:',margin,y);y+=5;
+    doc.setFont('helvetica','normal');doc.setTextColor(0,0,0);
+    var descLines=doc.splitTextToSize(inc.what_happened||'N/A',pageW-margin*2);
+    doc.text(descLines,margin,y);y+=descLines.length*5+4;
+    doc.setFont('helvetica','bold');doc.setTextColor(60,60,60);
+    doc.text('Immediate Containment Actions:',margin,y);y+=5;
+    doc.setFont('helvetica','normal');doc.setTextColor(0,0,0);
+    var actLines=doc.splitTextToSize(inc.action_taken||'N/A',pageW-margin*2);
+    doc.text(actLines,margin,y);y+=actLines.length*5+6;
+
+    // ── SECTION 2: Company Property ───────────────────────────────────────
+    if(y>pageH-50){doc.addPage();y=20;}
+    sectionHeader('SECTION 2 — COMPANY PROPERTY / EQUIPMENT DAMAGE');
+    field('Extent of Damage',inc.comp_damage||'N/A');
+    field('Vehicle/Equipment Reg',inc.vehicle_reg||'N/A');
+    field('Trailer Reg',inc.trailer_reg||'N/A');
+
+    // ── SECTION 3: Third Party ────────────────────────────────────────────
+    if(y>pageH-50){doc.addPage();y=20;}
+    sectionHeader('SECTION 3 — THIRD PARTY INVOLVEMENT');
+    field('Name & Contact',inc.third_party||'N/A');
+    field('Their Injuries',inc.third_injuries||'N/A');
+    field('Their Property Damage',inc.third_damage||'N/A');
+
+    // ── SECTION 4: Acknowledgement + Signature ────────────────────────────
+    if(y>pageH-70){doc.addPage();y=20;}
+    sectionHeader('SECTION 4 — STATEMENT ACKNOWLEDGEMENT');
+    doc.setFontSize(8);doc.setFont('helvetica','normal');doc.setTextColor(60,60,60);
+    doc.text('I acknowledge the information recorded in this report is true and correct.',margin,y);y+=8;
+    field('Staff Name',inc.reporter_name||'');
+    field('Acknowledgement Date',inc.ack_date||inc.incident_date||'');
+
+    // Signature
+    if(inc.sig_data && inc.sig_data.startsWith('data:image')){
+      try{
+        doc.setFontSize(8);doc.setFont('helvetica','bold');doc.setTextColor(60,60,60);
+        doc.text('Staff Signature:',margin,y);y+=3;
+        doc.addImage(inc.sig_data,'PNG',margin,y,70,22);y+=26;
+      }catch(e){y+=10;}
+    } else {
+      doc.setFontSize(8);doc.setFont('helvetica','normal');doc.setTextColor(150,150,150);
+      doc.text('[No signature captured]',margin,y);y+=8;
+    }
+
+    // Receipt acknowledgement box
+    if(y>pageH-40){doc.addPage();y=20;}
+    sectionHeader('SECTION 5 — REPORT RECEIPT (MANAGER USE ONLY)');
+    doc.setDrawColor(150,150,150);doc.setLineWidth(0.3);
+    doc.rect(margin,y,pageW-margin*2,28);
+    doc.setFontSize(8);doc.setFont('helvetica','normal');doc.setTextColor(100,100,100);
+    doc.text('Manager Name: ________________________________',margin+3,y+8);
+    doc.text('Signed: ________________________________',margin+3,y+16);
+    doc.text('Date: ________________',margin+3,y+24);
+    doc.text('Incident No: '+(inc.incident_number||''),pageW-margin-50,y+8);
+    y+=34;
+
+    // ── FOOTER ────────────────────────────────────────────────────────────
+    doc.setFillColor(240,240,240);
+    doc.rect(0,pageH-12,pageW,12,'F');
+    doc.setFontSize(7);doc.setTextColor(120,120,120);
+    doc.text('Rapid Pro Clean — Incident Report Form  |  File: Incident report form  |  Date: 23/03/2026  |  Page 1 of 1',pageW/2,pageH-5,{align:'center'});
+
+    var fname='IncidentReport_'+(inc.incident_number||'Report')+'_'+esc(inc.reporter_name||'Staff').replace(/\s+/g,'_')+'.pdf';
+    doc.save(fname);
+    toast('Incident report PDF downloaded ✅');
+  }catch(e){
+    toast('PDF error: '+(e.message||'Please try again'));
+  }
+}
+
 
 // PHOTOS
 async function renderPhotos(){
@@ -2253,5 +2898,40 @@ function doLogout(){CU=null;q('LS').classList.remove('h');q('MH').style.display=
   <button class="btn tl" style="margin-top:14px;width:100%" onclick="submitStaffLeave()">✅ Add and Approve Leave</button>
   <button class="btn ol" style="margin-top:8px;width:100%" onclick="closeM('AddLvM')">Cancel</button>
 </div></div>
+
+<div class="mov" id="IncidentM"><div class="msh"><div class="mh"></div><div class="mt">🚨 Report Incident</div>
+  <div class="mlbl">Reporting Person</div><input class="mi" id="incReporter" placeholder="Your name" type="text">
+  <div class="mlbl">Date of Incident</div><input class="mi" id="incDate" type="date">
+  <div class="mlbl">Time of Incident</div><input class="mi" id="incTime" type="time">
+  <div class="mlbl">Site</div><input class="mi" id="incSite" placeholder="e.g. Coles Westfield" type="text">
+  <div class="mlbl">Describe Location</div><input class="mi" id="incLocation" placeholder="e.g. Car park, Level 2, near entry" type="text">
+  <div class="mlbl">Incident Type</div>
+  <select class="msel" id="incType">
+    <option value="">Select type...</option>
+    <option>Slip / Trip / Fall</option>
+    <option>Chemical Exposure</option>
+    <option>Equipment Damage</option>
+    <option>Property Damage</option>
+    <option>Near Miss</option>
+    <option>Staff Conflict</option>
+    <option>Other</option>
+  </select>
+  <div class="mlbl">Who Caused the Incident</div><input class="mi" id="incCaused" placeholder="Name of person involved" type="text">
+  <div class="mlbl">Was Anyone Injured?</div>
+  <select class="msel" id="incInjured">
+    <option value="No">No</option>
+    <option value="Yes - Minor">Yes - Minor</option>
+    <option value="Yes - Moderate">Yes - Moderate</option>
+    <option value="Yes - Serious">Yes - Serious</option>
+  </select>
+  <div class="mlbl">Witness Names (if any)</div><input class="mi" id="incWitness" placeholder="Leave blank if none" type="text">
+  <div class="mlbl">What Happened</div><textarea class="mi" id="incWhat" rows="3" placeholder="Describe what happened in detail..." style="resize:vertical"></textarea>
+  <div class="mlbl">Action Taken / First Aid Given</div><textarea class="mi" id="incAction" rows="2" placeholder="What was done immediately after the incident?" style="resize:vertical"></textarea>
+  <div class="mlbl">Attach Photo (optional)</div><input class="mi" id="incPhoto" type="file" accept="image/*" style="padding:8px">
+  <div id="incErr" style="color:#e53935;font-size:12px;margin-top:4px"></div>
+  <button class="btn nv" onclick="submitIncident()">Submit Report</button>
+  <button class="btn sc" onclick="closeM('IncidentM')">Cancel</button>
+</div></div>
+
 </body>
 </html>
